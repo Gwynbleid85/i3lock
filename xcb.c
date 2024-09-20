@@ -92,15 +92,8 @@ xcb_visualtype_t *get_root_visual_type(xcb_screen_t *screen) {
     for (depth_iter = xcb_screen_allowed_depths_iterator(screen);
          depth_iter.rem;
          xcb_depth_next(&depth_iter)) {
-        for (visual_iter = xcb_depth_visuals_iterator(depth_iter.data);
-             visual_iter.rem;
-             xcb_visualtype_next(&visual_iter)) {
-            if (screen->root_visual != visual_iter.data->visual_id) {
-                continue;
-            }
-
-            visual_type = visual_iter.data;
-            return visual_type;
+        if (depth_iter.data->depth == 32) {
+            return xcb_depth_visuals_iterator(depth_iter.data).data;
         }
     }
 
@@ -126,29 +119,39 @@ xcb_pixmap_t create_bg_pixmap(xcb_connection_t *conn, xcb_screen_t *scr, u_int32
 
 xcb_window_t open_fullscreen_window(xcb_connection_t *conn, xcb_screen_t *scr, char *color, xcb_pixmap_t pixmap) {
     uint32_t mask = 0;
-    uint32_t values[3];
+    uint32_t values[5];
     xcb_window_t win = xcb_generate_id(conn);
+    xcb_visualtype_t* visual = get_root_visual_type(scr);
+    xcb_colormap_t colormap;
 
-    if (pixmap == XCB_NONE) {
-        mask |= XCB_CW_BACK_PIXEL;
-        values[0] = get_colorpixel(color);
-    } else {
-        mask |= XCB_CW_BACK_PIXMAP;
-        values[0] = pixmap;
-    }
+    colormap = xcb_generate_id(conn);
+    xcb_create_colormap(conn, XCB_COLORMAP_ALLOC_NONE, colormap, screen->root, visual->visual_id);
+
+
+
+    mask |= XCB_CW_BACK_PIXEL;
+    values[0] = 0;
+
+    mask |= XCB_CW_BORDER_PIXEL;
+    values[1] = 0;
 
     mask |= XCB_CW_OVERRIDE_REDIRECT;
-    values[1] = 1;
+    values[2] = 1;
 
     mask |= XCB_CW_EVENT_MASK;
-    values[2] = XCB_EVENT_MASK_EXPOSURE |
+    values[3] = XCB_EVENT_MASK_EXPOSURE |
                 XCB_EVENT_MASK_KEY_PRESS |
                 XCB_EVENT_MASK_KEY_RELEASE |
                 XCB_EVENT_MASK_VISIBILITY_CHANGE |
                 XCB_EVENT_MASK_STRUCTURE_NOTIFY;
+    
+    mask |= XCB_CW_COLORMAP;
+    values[4] = colormap;
 
-    xcb_create_window(conn,
-                      XCB_COPY_FROM_PARENT,
+    
+
+    xcb_void_cookie_t res = xcb_create_window(conn,
+                      32,
                       win,       /* the window id */
                       scr->root, /* parent == root */
                       0, 0,
@@ -156,7 +159,7 @@ xcb_window_t open_fullscreen_window(xcb_connection_t *conn, xcb_screen_t *scr, c
                       scr->height_in_pixels, /* dimensions */
                       0,                     /* border = 0, we draw our own */
                       XCB_WINDOW_CLASS_INPUT_OUTPUT,
-                      XCB_WINDOW_CLASS_COPY_FROM_PARENT, /* copy visual from parent */
+                      visual->visual_id, /* copy visual from parent */
                       mask,
                       values);
 
@@ -178,6 +181,15 @@ xcb_window_t open_fullscreen_window(xcb_connection_t *conn, xcb_screen_t *scr, c
                         8,
                         2 * (strlen("i3lock") + 1),
                         "i3lock\0i3lock\0");
+
+
+    //TODO: Seems like this is not needed, need to check
+    // uint32_t opacity = 0xff000000;  // 50% transparent
+    // xcb_intern_atom_cookie_t cookie = xcb_intern_atom(conn, 1, 12, "_NET_WM_WINDOW_OPACITY");
+    // xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(conn, cookie, NULL);
+    // xcb_change_property(conn, XCB_PROP_MODE_REPLACE, win, reply->atom, XCB_ATOM_CARDINAL, 32, 1, &opacity);
+    // free(reply);
+
 
     const uint32_t bypass_compositor = 1; /* disable compositing */
     _init_net_wm_bypass_compositor(conn);

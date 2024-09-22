@@ -20,6 +20,17 @@ or similar, use existing tooling to do this before passing it to i3lock.
 - i3lock uses PAM and therefore is compatible with LDAP etc.
   On OpenBSD i3lock uses the bsd_auth(3) framework.
 
+
+Transparency
+------------
+To enable transparency window composer must be running on the system.
+
+For example I use [picom](https://github.com/yshui/picom).
+
+No special configuration for the composer are needed.
+
+//TODO: Add option to configure custom alpha value.
+
 Install
 -------
 
